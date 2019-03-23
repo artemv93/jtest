@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" name="viewport" content="user-scalable=no, initial-scale=1.0, width=device-width"> 
+    <title>Charts contest for Telegram by Artem V</title>
+    <style>
+        /**{ border: 1px solid red; }*/
+        body {
+            -webkit-user-select: none;
+            -moz-user-select: -moz-none;
+            -ms-user-select: none;
+            user-select: none;
+            overflow-x: hidden;
+        }
+        canvas {
+            margin: auto;
+            width: 90vw;
+            height: 200px;
+            display: block;
+            margin-top: 20px;
+        }
+        h1{
+            margin: auto;
+            text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 14px;
+        }
+        /* important classes used for charts */
+        .chart-ruler-value {
+            z-index: 100;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 14px;
+            color: #96A2AA;
+            white-space: nowrap;
+            pointer-events: none;
+            /*transition: all 16ms ease;*/
+            position: absolute;
+        }
+        .chart-legend-table {
+            position: absolute;
+            display: grid;
+            padding: 5px;
+            z-index: 200;
+            background-color: #FFFFFF;
+            color: #222222;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            text-align: center;
+            pointer-events: none;
+            border-radius: 2px;
+            box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 2px 10px 0 rgba(0, 0, 0, 0.2);
+            white-space: nowrap;
+        }
+        .chart-legend-table-caption {
+            color: #222222;
+            font-size: 14px;
+        }
+        .chart-legend-table-td {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .chart-legend-table-th {
+            font-size: 12px;
+            font-weight: 100;
+        }
+        .chart-legend-circle {
+            position: absolute;
+            background-color:#fff;
+            border: 2px solid rgb(0, 0, 0);    
+            height: 7px;
+            width: 7px;
+            border-radius: 50%;
+        }
+        .chart-legend-vertical-line {
+            position: absolute;
+            border-left: 1px solid #DFE6EB;
+            height: 500px;
+        }
+        .chart-lens-bar-left {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            border-right: 4px solid rgba(33, 149, 243, 0.2)
+        }
+        .chart-lens-bar-right {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            border-left: 4px solid rgba(33, 149, 243, 0.2)
+        }
+        .chart-toggles-container {
+            margin: auto;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            width: 90vw;
+        }
+        .chart-toggles-name {
+            margin-left: 14px;
+            color: #494949;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 14px;
+        }
+        .chart-view-root {
+            background-clip:padding-box;
+        }
+        /* irrelevant css for fancy toggle switches */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 19px;
+            margin: auto;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #2196F3;
+        }
+        input:checked + .slider:before {
+            -webkit-transform: translateX(18px);
+            -ms-transform: translateX(18px);
+            transform: translateX(18px);
+        }
+        .slider.round {
+            border-radius: 34px;
+        }
+        .slider.round:before {
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Charts contest for Telegram by Artem V</h1>
+    <h1>/ HTML5 Canvas + WebGL hybrid /</h1>
+    <h1>WIP</h1>
+    <canvas id="glOffscreenCanvas">
+        <div id="vertexShaderCode">
+            attribute vec2 position;
+            uniform vec2 min;
+            uniform vec2 max;
+            uniform vec2 offset;
+            uniform vec2 screen;
+            uniform float margin;
+            void main(void)
+            {
+                // Who needs matrix libs anyways?
+                vec2 range = max - min;
+                vec2 toScreenSpace = screen - margin - margin;
+                vec2 toClipSpace = vec2(1) / screen;
+                float x = mix(1.0, -1.0, (margin + (max.x - position.x) / range.x * toScreenSpace.x) * toClipSpace.x);
+                float y = mix(1.0, -1.0, (margin + (max.y - position.y) / range.y * toScreenSpace.y) * toClipSpace.y);
+                gl_Position = vec4(x, y, 0.0, 1.0);
+            }
+        </div>
+        <div id="pixelShaderCode">
+            precision lowp float;
+            uniform vec4 color;
+            void main(void)
+            {
+                gl_FragColor = color;
+            }
+        </div>
+    </canvas>
+</body>
+<script>
+    "use strict";
+    //-------------------------------------------------------------------------------------------------
+    // Declare some global constants
+    const triangleFanCircleVertexCount = 16;
+    const triangleFanCircle = [0.5,0,0.46193976625564337,0.1913417161825449,0.3535533905932738,0.35355339059327373,0.19134171618254492,0.46193976625564337,3.061616997868383e-17,0.5,-0.19134171618254486,0.46193976625564337,-0.35355339059327373,0.3535533905932738,-0.46193976625564337,0.19134171618254495,-0.5,6.123233995736766e-17,-0.4619397662556434,-0.19134171618254484,-0.35355339059327384,-0.35355339059327373,-0.19134171618254517,-0.46193976625564326,-9.184850993605148e-17,-0.5,0.191341716182545,-0.4619397662556433,0.353553390593274,-0.3535533905932735,0.4619397662556436,-0.19134171618254436];
+    const rulerStepTableX = [0, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, 14400, 43200, 86400, 604800, 2419200, 29030400];    // time in seconds
+    const rulerStepTableY = [0, 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 50000, 100000, 500000, 1000000];  // generic numbers
+    // Prepare offscreen WebGL context
+    const canvas = document.getElementById("glOffscreenCanvas");
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    canvas.style.display = "none";
+    var gl = canvas.getContext('webgl');
+    var vertexShader = null;
+    var pixelShader = null;
+    var gpuProgram = null;
+    var vsPosition; // vec2 attribute
+    var vsMin;      // vec2 uniform
+    var vsMax;      // vec2 uniform
+    var vsOffset;   // vec2 uniform
+    var vsScreen;   // vec2 uniform
+    var vsMargin;   // float uniform
+    var psColor;    // vec4 uniform
+    var circleVertexBuffer = null;
+    if (gl) {
+        // compile shaders
+        vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        pixelShader = gl.createShader(gl.FRAGMENT_SHADER);
+        gpuProgram = gl.createProgram();
+        glCompileShader(gl, gpuProgram, vertexShader, "vertexShader", vertexShaderCode.innerText);
+        glCompileShader(gl, gpuProgram, pixelShader, "pixelShader", pixelShaderCode.innerText);
+        gl.linkProgram(gpuProgram);
+        // locate program inputs (uniforms and attributes)
+        vsPosition = gl.getAttribLocation(gpuProgram, "position");
+        vsMin = gl.getUniformLocation(gpuProgram, "min");
+        vsMax = gl.getUniformLocation(gpuProgram, "max");
+        vsOffset = gl.getUniformLocation(gpuProgram, "offset");
+        vsScreen = gl.getUniformLocation(gpuProgram, "screen");
+        vsMargin = gl.getUniformLocation(gpuProgram, "margin");
+        psColor = gl.getUniformLocation(gpuProgram, "color");
+        // create circle mesh buffer (unused)
+        circleVertexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, circleVertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleFanCircle), gl.STATIC_DRAW);
+    }
+    // Bind global handlers
+    var g_ChartInteractionInProgress = null;
+    function globalTouchEnd(e) {
+        if (g_ChartInteractionInProgress) {
+            g_ChartInteractionInProgress.touchEnd(e);
+            g_ChartInteractionInProgress = null;
+        }
+    }
+    document.body.addEventListener("mouseup", globalTouchEnd);
+    document.body.addEventListener("touchend", globalTouchEnd);
+    document.body.addEventListener("touchcancel", globalTouchEnd);
+    //-------------------------------------------------------------------------------------------------
+    // constructor
+    function Dataset(name, color, type, vertices, vertexCount, beginDate, xMin, xMax, yMin, yMax) {
+        this.name = name;
+        this.color = color;
+        this.type = type;
+        this.verts = vertices;          // Float32Array
+        this.vertCount = vertexCount;   // validated vetex count (better use this instead of verts.length)
+        this.beginDate = beginDate;
+        this.min = [xMin, yMin];
+        this.max = [xMax, yMax];
+        this.scaleX = 1;
+        this.scaleY = 1;
+        this.opacity = 1;
+        this.hidden = false;
+    }
+    //-------------------------------------------------------------------------------------------------
+    /* The data we have
+        [ 
+            {
+                "columns":
+                [
+                    ["x", 1542412800000, ...],
+                    ["y0", 64, ...],
+                    ["y1", 52, ...],
+                    ...
+                ],
+                "types":
+                {
+                    "y0": "line",
+                    "y1": "line",
+                    "x": "x"
+                },
+                "names":
+                {
+                    "y0": "#0",
+                    "y1": "#1"
+                },
+                "colors":
+                {
+                    "y0":"#3DC23F",
+                    "y1":"#F34C44"
+                }
+            },
+            {
+
+            }
+        ]
+    */
+    /* The data we want (for performance)
+        [
+            // Chart
+            [
+                // Dataset
+                {
+                    "name": "#0",
+                    "color": "#3DC23F",
+                    "type": "line",
+                    "verts": Float32Array([x, y, x, y, ...]) // Cache-friendly contigious interleaved array (also compatible with WebGL)
+                },
+                // Dataset
+                {
+                    "name": "#1",
+                    "color": "#F34C44",
+                    "type": "line",
+                    "verts": Float32Array([x, y, x, y, ...])
+                },
+                ...
+            ],
+            // Chart
+            ...
+        ]
+    */
+    function convertTelegramChartToArrayOfDatasets(src) {
+        var srcNameKeys = Object.keys(src.names);
+        var srcNameValues = Object.values(src.names);
+        var srcTypeKeys = Object.keys(src.types);
+        var srcTypeValues = Object.values(src.types);
+        var srcColorKeys = Object.keys(src.colors);
+        var srcColorValues = Object.values(src.colors);
+        var srcXName = srcTypeKeys[srcTypeValues.indexOf("x")];
+        var srcXs = [];
+        var srcYs = [];
+        var dst = new Array(srcNameKeys.length);
+        for (var i = 0; i < dst.length; ++i) {
+            var dstNameKey = srcNameKeys[i];
+            for (var j = 0; j < src.columns.length; ++j) {
+                var srcColumn = src.columns[j];
+                switch (srcColumn[0]) {
+                    case srcXName: { srcXs = srcColumn; } break;
+                    case dstNameKey: { srcYs = srcColumn; } break;
+                }
+            }
+            var dstName = srcNameValues[i];
+            var dstColor = srcColorValues[srcColorKeys.indexOf(dstNameKey)];
+            var dstType = srcTypeValues[srcTypeKeys.indexOf(dstNameKey)];
+            var dstVerts = new Float32Array(srcXs.length * 2);
+            var beginDate = srcXs[1] / 1000;            // convert milliseconds to seconds
+            var dstMinX = 0;
+            var dstMaxX = 0;
+            var dstMinY = Number.MAX_VALUE;
+            var dstMaxY = Number.MIN_VALUE;
+            var vertexOffset = 0;
+            for (var j = 1; j < srcXs.length; ++j) {
+                var x = srcXs[j] / 1000;                // convert milliseconds to seconds
+                var y = srcYs[j];
+                if (x > 0) {
+                    if (y < dstMinY) dstMinY = y;
+                    if (y > dstMaxY) dstMaxY = y;
+                    dstMaxX = (x - beginDate);
+                    dstVerts[vertexOffset++] = dstMaxX; // x - store delta-seconds from origin
+                    dstVerts[vertexOffset++] = y;       // y - copy as is
+                }
+            }
+            dst[i] = new Dataset(dstName, dstColor, dstType, dstVerts, vertexOffset / 2, beginDate, dstMinX, dstMaxX, dstMinY, dstMaxY);
+        }
+        return dst;
+    }
+    //-------------------------------------------------------------------------------------------------
+    // Main
+    asyncLoadChartData(function (data) {
+        // Convert data
+        const views = new Array(data.length);
+        for (var i = 0; i < data.length; ++i) {
+            const datasets = convertTelegramChartToArrayOfDatasets(data[i]);
+            const view = new ChartView(gl, datasets, {chartApi:"canvas2d", lensApi:"webgl"});
+            views[i] = view;
+        }
+        // Animate first 30 frames manually
+        var count = 30;
+        function animate() {
+            for (var i = 0; i < views.length; ++i) {
+                views[i].draw();
+            }
+            if (count-- > 0)
+                window.requestAnimationFrame(animate);
+        }
+        animate();
+        // test webgl
+        /*if (gl) {
+            const chart = charts[0].chart;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.clearColor(1, 0, 1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.useProgram(gpuProgram);
+            for (var i = 0; i < chart.datasets.length; ++i) {
+                const dataset = chart.datasets[i];
+                // create vertex buffers
+                const vertexBuf = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuf);
+                gl.bufferData(gl.ARRAY_BUFFER, dataset.verts, gl.STATIC_DRAW);
+                gl.vertexAttribPointer(vsPosition, 2, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(vsPosition);
+                gl.uniform2fv(vsMin, chart.min);
+                gl.uniform2fv(vsMax, chart.max);
+                gl.uniform2f(vsOffset, 0, 0);
+                gl.uniform2f(vsScreen, canvas.width, canvas.height);
+                gl.uniform4f(psColor, 0, 1, 1, 1);
+                gl.drawArrays(gl.LINE_STRIP, 0, dataset.vertCount);
+            }
+            //circle
+            gl.bindBuffer(gl.ARRAY_BUFFER, circleVertexBuffer);
+            gl.vertexAttribPointer(vsPosition, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(vsPosition);
+            gl.uniform2f(vsMax, 1, 1);
+            gl.uniform2f(vsOffset, 1, 0);
+            gl.uniform4f(psColor, 0, 1, 1, 1);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, triangleFanCircleVertexCount);
+        }*/
+    });
+    var ChartOptions = { 
+        legend: true,
+        ruler: true,
+        parent: null,           // <HTMLElement>
+        rulerStepInPixelsX: 75,
+        rulerStepInPixelsY: 30,
+        margin: 8,
+        lineWidth: 2.5,
+        lineCap: "bevel",       // "bevel|round|miter";
+        lineJoin: "bevel",
+        selfUpdate: true,
+        height: null            // null to keep css value
+    };
+    var ChartRuler = {
+        range: 0,
+        numSteps: 0,
+        step: 0,
+        min: 0,
+        max: 0,
+        nodes: [],
+        animDist: 0
+    };
+    var ChartDataRange = {
+        min: [0, 0],
+        max: [0, 0],
+    };
+    //-------------------------------------------------------------------------------------------------
+    // constructor
+    function Chart(gl, datasets, options) {
+        const self = this;
+        const opt = options || Object.create(ChartOptions);
+        if (opt.legend == undefined)                opt.legend = true;
+        if (opt.ruler == undefined)                 opt.ruler = true;
+        if (opt.parent == undefined)                opt.parent = null;
+        if (opt.rulerStepInPixelsX == undefined)    opt.rulerStepInPixelsX = 75;
+        if (opt.rulerStepInPixelsY == undefined)    opt.rulerStepInPixelsY = 30;
+        if (opt.margin == undefined)                opt.margin = 8;
+        if (opt.lineWidth == undefined)             opt.lineWidth = 2.5;
+        if (opt.lineCap == undefined)               opt.lineCap = "bevel";
+        if (opt.lineJoin == undefined)              opt.lineJoin = "bevel";
+        if (opt.selfUpdate == undefined)            opt.selfUpdate = true;
+        if (opt.height == undefined)                opt.height = null;
+        const canvas = document.createElement("canvas");
+        self.ctx = canvas.getContext("2d");
+        self.datasets = datasets;
+        self.opt = opt;
+        self.gl = gl;
+        self.scaleX = 1;
+        self.scaleY = 1;
+        self.mouseX = 0;
+        self.mouseY = 0;
+        self.beginDate = Number.MAX_VALUE;
+        self.min = [Number.MAX_VALUE, Number.MAX_VALUE];
+        self.max = [Number.MIN_VALUE, Number.MIN_VALUE];
+        // Compute extreme points for all datasets
+        for (var i = 0; i < datasets.length; ++i) {
+            const dataset = datasets[i];
+            if (dataset.min[0] < self.min[0]) self.min[0] = dataset.min[0];
+            if (dataset.min[1] < self.min[1]) self.min[1] = dataset.min[1];
+            if (dataset.max[0] > self.max[0]) self.max[0] = dataset.max[0];
+            if (dataset.max[1] > self.max[1]) self.max[1] = dataset.max[1];
+            if (dataset.beginDate < self.beginDate) self.beginDate = dataset.beginDate;
+        }
+        self.dynamicMinY = self.min[1];
+        self.dynamicMaxY = self.max[1];
+        self.range = { // <ChartDataRange>
+            min: self.min,
+            max: self.max
+        };
+        self.drawing = false;
+        if (gl) {
+            // Create WebGL vertex buffers here once
+            self.vertexBuffers = new Array(datasets.length);
+            for (var i = 0; i < datasets.length; ++i) {
+                const vertexBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER, datasets[i].verts, gl.STATIC_DRAW);
+                self.vertexBuffers[i] = vertexBuffer;
+            }
+        }
+        if (!opt.parent) {
+            opt.parent = document.body;
+        }
+        if (opt.ruler) {
+            self.rulers = [Object.create(ChartRuler), Object.create(ChartRuler)];
+        }
+        if (opt.legend) {
+            // Create HTML legend table, line and circle elements used for mouse hover
+            self.legend = new ChartLegendTable(opt.parent, datasets, 2);
+            self.mouseNearestVertex = Number.MIN_VALUE;
+            self.uiNodeLine = htmlCreate("div", opt.parent, "chart-legend-vertical-line", false);
+            self.uiNodeCircles = new Array(datasets.length);
+            for (var i = 0; i < datasets.length; ++i) {
+                const node = htmlCreate("div", opt.parent, "chart-legend-circle", false);
+                self.uiNodeCircles[i] = node;
+            }
+            function handleMouseEvents(mouseEvent) {
+                // A shorthand function for mouse event handlers
+                canvas.width = canvas.clientWidth;
+                canvas.height = canvas.clientHeight;
+                if (mouseEvent && mouseEvent.clientX && mouseEvent.clientY) {
+                    const rect = self.ctx.canvas.getBoundingClientRect();
+                    self.mouseX = (mouseEvent.clientX - rect.left) * (self.ctx.canvas.width / rect.width);
+                    self.mouseY = (mouseEvent.clientY - rect.top) * (self.ctx.canvas.height / rect.height);
+                }
+                if (opt.selfUpdate) {
+                    self.draw();
+                }
+            }
+            canvas.addEventListener("mousemove", function (e) { handleMouseEvents(e); });
+            canvas.addEventListener("mousedown", function (e) { handleMouseEvents(e); });
+        }
+        //canvas.onresize = handleResizeEvents;
+        // Append canvas
+        opt.parent.appendChild(canvas);
+        // Resize canvas
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+        if (opt.height) {
+            canvas.style.height = opt.height + "px";
+        }
+        if (!gl) {
+            // Have to resize one more time for canvas2d
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+        }
+    }
+    //-------------------------------------------------------------------------------------------------
+    Chart.prototype.draw = function(oldRange, newRange) {
+        const chart = this;
+        if (chart.drawing) return;
+        chart.drawing = true;
+        const ctx = chart.ctx;
+        const opt = chart.opt;
+        const left = ctx.canvas.offsetLeft;
+        const top = ctx.canvas.offsetTop;
+        const width = ctx.canvas.width;
+        const height = ctx.canvas.height;
+        oldRange = oldRange || chart.range;
+        newRange = newRange || chart.range;
+        chart.resize(newRange);
+        if (chart.gl) {
+            // WebGL 
+            const gl = chart.gl;
+            gl.viewport(0, 0, width, height);
+            gl.clearColor(1, 1, 1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.useProgram(gpuProgram);
+        }
+        else {
+            // HTML5 Canvas
+            ctx.clearRect(0, 0, width, height);
+            ctx.font = "14px Arial";
+            if (opt.ruler) {
+                ctx.beginPath();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = "#DFE6EB";
+                const r = chart.rulers[1];
+                // draw ruler grid (horizontal lines)
+                for (var i = 0; i < r.numSteps; ++i) {
+                    const t = (i * r.step) / r.range;
+                    const y = height - height * t;
+                    ctx.moveTo(0, y - 2);
+                    ctx.lineTo(width, y - 2);
+                }
+                ctx.stroke();
+            }
+            ctx.lineWidth = opt.lineWidth;
+            ctx.lineJoin = opt.lineJoin;
+            ctx.lineCap = opt.lineJoin;
+        }
+        var circleWidth = 0;
+        var circleHeight = 0;
+        if (opt.legend) {
+            const circleBounds = chart.uiNodeCircles[0].getBoundingClientRect();
+            circleWidth = circleBounds.right - circleBounds.left;
+            circleHeight = circleBounds.bottom - circleBounds.top;
+        }
+        var mouseNearestVertex = Number.MIN_VALUE;
+        var vRaw = [0, 0];
+        var vScr = [0, 0];
+        var minY = Number.MAX_VALUE;
+        var maxY = Number.MIN_VALUE;
+        var numVisibleDatasets = 0;
+        for (var i = 0; i < chart.datasets.length; ++i) {
+            // for each dataset
+            const dataset = chart.datasets[i];
+            if (dataset.opacity > 0) {
+                if (!chart.gl) {
+                    ctx.strokeStyle = dataset.color;
+                    ctx.globalAlpha = dataset.opacity;
+                    ctx.beginPath();
+                }
+                const scaleX = chart.scaleX * dataset.scaleX;
+                const scaleY = chart.scaleY * dataset.scaleY;
+                //if (chart.dynamicMinY <= 0) chart.dynamicMinY = newRange.min[1];
+                //if (chart.dynamicMaxY <= 0) chart.dynamicMaxY = newRange.max[1];
+                const min = [newRange.min[0] / scaleX, chart.dynamicMinY / scaleY];
+                const max = [newRange.max[0] / scaleX, chart.dynamicMaxY / scaleY];
+                const rangeX = max[0] - min[0];
+                const rangeY = max[1] - min[1];
+                const clipMin = min[0] - (rangeX / dataset.vertCount) * 8;
+                const clipMax = max[0] + (rangeX / dataset.vertCount) * 8;
+                var vertexOffset = 0;
+                var mouseNearestDeltaX = Number.MAX_VALUE;
+                mouseNearestVertex = Number.MIN_VALUE;
+                for (var j = 0; j < dataset.vertCount; ++j) {
+                    // for each vertex
+                    var vertX = dataset.verts[vertexOffset++];
+                    var vertY = dataset.verts[vertexOffset++];
+                    if (vertX < clipMin || vertX > clipMax) continue;
+                    if (!dataset.hidden) {
+                        if (vertY < minY) minY = vertY;
+                        if (vertY > maxY) maxY = vertY;
+                    }
+                    // Same vertex transform as in GLSL, only hairier looking
+                    const x = width - (opt.margin + (max[0] - vertX) / rangeX * (width - opt.margin*2));
+                    const y = (opt.margin + (max[1] - vertY) / rangeY * (height - opt.margin*2));
+                    if (chart.mouseX != 0) {
+                        const mouseDeltaX = Math.abs(chart.mouseX - x);
+                        if (mouseDeltaX < mouseNearestDeltaX) {
+                            mouseNearestDeltaX = mouseDeltaX;
+                            mouseNearestVertex = vertexOffset-2;
+                            vRaw[0] = vertX;
+                            vRaw[1] = vertY;
+                            vScr[0] = x;
+                            vScr[1] = y;
+                        }
+                    }
+
+                    if (!chart.gl) {
+                        ctx.lineTo(x, y); // HTML5 Canvas
+                    }
+                }
+                if (chart.gl) {
+                    // WebGL 
+                    const min = [newRange.min[0], chart.dynamicMinY];
+                    const max = [newRange.max[0], chart.dynamicMaxY];
+                    const rgb = hexToRgb(dataset.color);
+                    gl.bindBuffer(gl.ARRAY_BUFFER, chart.vertexBuffers[i]);
+                    gl.uniform2fv(vsMin, min);
+                    gl.uniform2fv(vsMax, max);
+                    gl.uniform2f(vsOffset, 0, 0);
+                    gl.uniform2f(vsScreen, width, height);
+                    gl.uniform1f(vsMargin, opt.margin);
+                    gl.uniform4f(psColor, rgb[0], rgb[1], rgb[2], dataset.opacity);
+                    gl.vertexAttribPointer(vsPosition, 2, gl.FLOAT, false, 0, 0);
+                    gl.enableVertexAttribArray(vsPosition);
+                    gl.drawArrays(gl.LINE_STRIP, 0, dataset.vertCount);
+                }
+                else {
+                    // HTML5 Canvas
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+                if (opt.legend) {
+                    if (mouseNearestVertex != Number.MIN_VALUE) {
+                        const line = chart.uiNodeLine;
+                        htmlShow(line);
+                        htmlPosition(line, left + vScr[0], top + opt.margin, null, ctx.canvas.height - opt.margin);
+                        // display circle
+                        var circle = chart.uiNodeCircles[i];
+                        htmlShow(circle);
+                        htmlPosition(circle, left + vScr[0] - circleWidth * 0.5, top + vScr[1] - circleHeight * 0.5);
+                        htmlColor(circle, opt.parent.backgroundColor, null, dataset.color);
+                        // update ChartLegendTable
+                        var dateStr = makeDateString(chart.beginDate + vRaw[0], true, true, true);
+                        updateChartLegendTable(chart.legend, i, left + chart.mouseX - 20, top + 10, dateStr, vRaw[1].toFixed());
+                    }
+                }
+            }
+            if (dataset.hidden) {
+                if (opt.legend) {
+                    var circle = chart.uiNodeCircles[i];
+                    htmlHide(circle);
+                }
+            }
+        }
+        if (minY != Number.MAX_VALUE && maxY != Number.MIN_VALUE) {
+            chart.dynamicMinY = lerp(chart.dynamicMinY, minY, 0.25);
+            chart.dynamicMaxY = lerp(chart.dynamicMaxY, maxY, 0.25);
+        }
+        if (chart.gl){
+            // WebGL 
+            ctx.drawImage(gl.canvas, 0, 0, width, height);
+        }
+        if (opt.ruler) {
+            var r = chart.rulers[0];
+            const rangeX = oldRange.max[0] - oldRange.min[0];
+            const offsetTime = oldRange.min[0] - newRange.min[0];
+            var value = oldRange.min[0];
+            for (var i = 0; i < r.numSteps; ++i) {
+                const node = r.nodes[i];
+                const t = (i * r.step + offsetTime) / r.range;
+                const value = oldRange.min[0] + r.range * t ;
+                node.innerText = makeDateString(chart.beginDate + value, false, true, true);
+                //const rect = node.getBoundingClientRect();
+                const nodeWidth = 40; //rect.right - rect.left;
+                node.style.left = ((left + nodeWidth) + (width - nodeWidth) * t - nodeWidth).toString() + "px";
+                node.style.top = (top + height).toString() + "px";
+                node.style.visibility = "visible";
+            }
+            if (minY != Number.MAX_VALUE && maxY != Number.MIN_VALUE) {
+                r = chart.rulers[1];
+                var dynamicRangeY = maxY - minY;
+                for (var i = 0; i < r.numSteps; ++i) {
+                    const node = r.nodes[i];
+                    const t = (i * r.step) / dynamicRangeY;
+                    const value = r.min + Math.round(dynamicRangeY * t);
+                    node.innerText = value.toFixed();
+                    node.style.left = left + "px";
+                    var yCord = top - 20 + (height - height * t);
+                    if (yCord > top) {
+                        node.style.top = yCord.toString() + "px";
+                        node.style.visibility = "visible";
+                    }
+                    else {
+                        node.style.visibility = "hidden";
+                    }
+                }
+            }
+        }
+        chart.drawing = false;
+    }
+    //-------------------------------------------------------------------------------------------------
+    Chart.prototype.resize = function(viewRange) {
+        // (See comment in "rulerResize" function)
+        const chart = this;
+        const opt = chart.opt;
+        const range = viewRange || chart.range;
+        //const ctx = chart.ctx;
+        //rulerResize(chart.rulers[0], opt.parent, range.min[0], range.max[0], ctx.canvas.width, opt.rulerStepInPixelsX, null);
+        //rulerResize(chart.rulers[1], opt.parent, range.min[1], range.max[1], ctx.canvas.height, opt.rulerStepInPixelsY, rulerStepTableY);
+
+        if (opt.ruler) {
+            // X
+            var r = chart.rulers[0];
+            r.range = range.max[0] - range.min[0];
+            r.numSteps = Math.round(chart.ctx.canvas.width / opt.rulerStepInPixelsX);
+            r.step = rulerStep(rulerStepTableX, r.range / r.numSteps);
+            r.nodes = realloc(r.nodes, r.numSteps + 1);
+            for (var i = 0; i < r.numSteps + 1; ++i) {
+                if (!r.nodes[i]) {
+                    r.nodes[i] = htmlCreate("a", chart.opt.parent, "chart-ruler-value", false);
+                }
+            }
+            // Y
+            r = chart.rulers[1];
+            r.range = chart.dynamicMaxY - chart.dynamicMinY;
+            r.numSteps = Math.round(chart.ctx.canvas.height / opt.rulerStepInPixelsY);
+            r.step = rulerStep(rulerStepTableY, r.range / r.numSteps);
+            r.nodes = realloc(r.nodes, r.numSteps + 1);
+            for (var i = 0; i < r.numSteps + 1; ++i) {
+                if (!r.nodes[i]) {
+                    r.nodes[i] = htmlCreate("a", chart.opt.parent, "chart-ruler-value", false);
+                }
+            }
+        }
+    }
+    //-------------------------------------------------------------------------------------------------
+    var ChartViewOptions = {
+        chartApi: "canvas2d",
+        lensApi: "webgl",
+        legend: true,
+        ruler: true,
+        parent: null,
+    }
+    // constructor
+    function ChartView(gl, datasets, options) {
+        // This creates chart + lens with animation logic
+        const self = this;
+        const opt = options || Object.create(ChartViewOptions);
+        if (opt.chartApi == undefined) opt.chartApi = "canvas2d";
+        if (opt.lensApi == undefined) opt.lensApi = "webgl";
+        if (opt.legend == undefined) opt.legend =  true;
+        if (opt.ruler == undefined) opt.ruler = true;
+        if (opt.parent == undefined) opt.parent = null;
+        if (opt.parent == null)
+            opt.parent = document.body;
+        const chartGL = opt.chartApi == "webgl" ? gl : null;
+        const lensGL = opt.lensApi == "webgl" ? gl : null;
+        self.uiRootContainer = htmlCreate("div", opt.parent, "chart-view-root");
+        const mainOptions = {
+            legend: opt.legend,
+            ruler: opt.ruler,
+            parent: self.uiRootContainer,
+            rulerStepInPixelsX: 75,
+            rulerStepInPixelsY: 30,
+            margin: 8,
+            selfUpdate: false,
+            lineCap: "round",       // "bevel|round|miter" canvas2d only
+            lineJoin: "round",
+        };
+        self.chart = new Chart(chartGL, datasets, mainOptions);
+        self.uiLensContainer = htmlCreate("div", self.uiRootContainer);
+        var lensOptions = {
+            legend: false,
+            ruler: false,
+            parent: self.uiLensContainer,
+            rulerStepInPixelsX: 75,
+            rulerStepInPixelsY: 30,
+            margin: 8,
+            height: 100,
+        };
+        self.lens = new Chart(lensGL, datasets, lensOptions);
+        self.uiLeftBar = htmlCreate("div", self.uiLensContainer, "chart-lens-bar-left", true, null, "#FFFFFFA1");
+        self.uiRightBar = htmlCreate("div", self.uiLensContainer, "chart-lens-bar-right", true, null, "#FFFFFFA1");
+        self.opt = opt;
+        self.left = 0.8;
+        self.width = 0.2;
+        self.mouseX = 0;
+        self.mouseY = 0;
+        self.animationInProgress = false;
+        const chart = self.chart;
+        const lens = self.lens;
+        chart.resize();
+        self.range = chart.range;
+        function recomputeRange() {
+            var minX = Math.round(chart.max[0] * self.left);
+            var maxX = Math.round(chart.max[0] * (self.left + self.width));
+            self.range = {
+                min: [minX, chart.min[1]],
+                max: [maxX, chart.max[1]]
+            }
+            htmlPosition(self.uiLeftBar,
+                lens.ctx.canvas.offsetLeft,
+                lens.ctx.canvas.offsetTop,
+                lens.ctx.canvas.clientWidth * self.left,
+                lens.ctx.canvas.clientHeight);
+            htmlPosition(self.uiRightBar,
+                lens.ctx.canvas.offsetLeft + lens.ctx.canvas.clientWidth * (self.left + self.width),
+                lens.ctx.canvas.offsetTop,
+                lens.ctx.canvas.clientWidth,
+                lens.ctx.canvas.clientHeight);
+        }
+        self.touchMove = function (e) {
+            if (g_ChartInteractionInProgress != self)
+                return;
+            var clientX = e.clientX;
+            var clientY = e.clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+            var deltaX = clientX - self.mouseX;
+            self.left = clamp(self.left + deltaX / lens.ctx.canvas.clientWidth, 0, 1 - self.width);
+            recomputeRange();
+            self.mouseX = clientX;
+            self.mouseY = clientY;
+            console.log("move");
+        }
+        self.touchExpand = function (e) {
+            if (g_ChartInteractionInProgress != self)
+                return;
+            var clientX = e.clientX;
+            var clientY = e.clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+            var deltaX = clientX - self.mouseX;
+            if (e.srcElement == self.uiLeftBar) {
+                self.width = self.width - deltaX / lens.ctx.canvas.clientWidth;
+                self.left = self.left + deltaX / lens.ctx.canvas.clientWidth;
+            }
+            if (e.srcElement == self.uiRightBar) {
+                self.width = self.width + deltaX / lens.ctx.canvas.clientWidth;
+            }
+            console.log("expand");
+            console.dir(e.srcElement);
+            recomputeRange();
+            self.mouseX = clientX;
+            self.mouseY = clientY;
+        }
+        self.touchStart = function (e) {
+            if (g_ChartInteractionInProgress == null)
+                g_ChartInteractionInProgress = self;
+            else
+                return;
+            var clientX = e.clientX;
+            var clientY = e.clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+            self.mouseX = clientX;
+            self.mouseY = clientY;
+            recomputeRange();
+            function animate () {
+                
+                chart.draw(chart.range, self.range);
+                
+                if (g_ChartInteractionInProgress == self)
+                    window.requestAnimationFrame(animate);
+            }
+            animate();
+        }
+        self.touchEnd = function (e) {
+            g_ChartInteractionInProgress = null;
+            chart.range = self.range;
+            var count = 30;
+            function animate () {
+                chart.draw(chart.range, self.range);
+                if (count-- > 0)
+                    window.requestAnimationFrame(animate);
+            }
+            animate();
+        }
+        self.uiLeftBar.addEventListener("mousedown", self.touchStart);
+        self.uiLeftBar.addEventListener("touchstart", self.touchStart);
+        self.uiLeftBar.addEventListener("mousemove", self.touchExpand);
+        self.uiLeftBar.addEventListener("touchmove", self.touchExpand);
+
+        self.uiRightBar.addEventListener("mousedown", self.touchStart);
+        self.uiRightBar.addEventListener("touchstart", self.touchStart);
+        self.uiRightBar.addEventListener("mousemove", self.touchExpand);
+        self.uiRightBar.addEventListener("touchmove", self.touchExpand);
+
+        self.uiLensContainer.addEventListener("mousemove", self.touchMove);
+        self.uiLensContainer.addEventListener("touchmove", self.touchMove);
+        lens.ctx.canvas.addEventListener("mousedown", self.touchStart);
+        lens.ctx.canvas.addEventListener("touchstart", self.touchStart);
+        chart.ctx.canvas.addEventListener("mousemove", function(e) {chart.draw(chart.range, self.range);});
+        recomputeRange();
+        // toggle switches
+        self.uiTogglesContainer = htmlCreate("div", self.uiRootContainer, "chart-toggles-container");
+        self.uiToggles = new Array(datasets.length);
+        for (var i = 0; i < datasets.length; ++i) {
+            var dataset = datasets[i];
+            var label = htmlCreate("label", self.uiTogglesContainer, "switch");
+            label.innerHTML = "<input type='checkbox' checked dataset='"+ i +"'><span class='slider round' style='background-color:" + dataset.color + ";'></span>";
+            var input = label.getElementsByTagName("input")[0];
+            var span = label.getElementsByTagName("span")[0];
+            var t = 1;
+            input.oninput = function (e) {
+                var datasetIndex = e.srcElement.getAttribute("dataset");
+                var siblingSpan  = e.srcElement.nextElementSibling;
+                var thisDataset = datasets[datasetIndex];
+                thisDataset.hidden = !thisDataset.hidden;
+                if (thisDataset.hidden) siblingSpan.style.backgroundColor = "#ccc";
+                else siblingSpan.style.backgroundColor = thisDataset.color;
+                function animateToggleSwitch() {
+                    t = t * (t - 0.0005);
+                    if (thisDataset.hidden) {
+                        // fade 1 -> 0
+                        // scale x -> 4
+                        thisDataset.opacity = t;
+                        thisDataset.scaleY = lerp(thisDataset.scaleY, 4, 1 - thisDataset.opacity);
+                        if (thisDataset.opacity < 0) {
+                            thisDataset.opacity = 0;
+                            thisDataset.scaleY = 4;
+                        }
+                    }
+                    else {
+                        // fade 0 -> 1
+                        // scale x -> 1
+                        thisDataset.opacity = 1 - t;
+                        thisDataset.scaleY = lerp(thisDataset.scaleY, 1, thisDataset.opacity);
+                    }
+                    chart.draw(chart.range, self.range);
+                    if (t > 0)
+                        window.requestAnimationFrame(animateToggleSwitch);
+                    else
+                        t = 1;
+                }
+                animateToggleSwitch();
+            }
+            var name = htmlCreate("span", self.uiTogglesContainer, "chart-toggles-name");
+            name.innerText = dataset.name;
+            htmlCreate("br", self.uiTogglesContainer);
+            self.uiToggles[i] = input;
+        }
+    }
+    //-------------------------------------------------------------------------------------------------
+    ChartView.prototype.draw = function () {
+        const self = this;
+        const lens = self.lens;
+        const chart = self.chart;
+        var minX = chart.max[0] * self.left;
+        var maxX = chart.max[0] * (self.left + self.width);
+        chart.range = {
+            min: [minX, chart.min[1]],
+            max: [maxX, chart.max[1]]
+        }
+        lens.draw();
+        chart.draw();
+    }
+    //-------------------------------------------------------------------------------------------------
+    // This exists because "CORS" https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+    // And because syncronous XMLHttpRequest is deprecated
+    function asyncLoadChartData(onCompleted) {
+        var req = new XMLHttpRequest();
+        req.overrideMimeType("application/json");
+        req.open('GET', "chart_data.json", true);
+        req.onload = function () {
+            var data = JSON.parse(req.responseText);
+            onCompleted(data);
+        };
+        req.send(null);
+    }
+    //-------------------------------------------------------------------------------------------------
+    /*
+        Helper functions
+    */
+    //-------------------------------------------------------------------------------------------------
+    function glCompileShader(gl, prog, shader, name, sourceCode) {
+        gl.shaderSource(shader, sourceCode);
+        gl.compileShader(shader);
+        var status = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+        var log = gl.getShaderInfoLog(shader);
+        if (status == false) {
+            console.log(name + " compiler status: " + status + " log: " + log);
+        }
+        gl.attachShader(prog, shader);
+    }
+    //-------------------------------------------------------------------------------------------------
+    function hexToRgb(hex) {
+        var r = hex.substring(1, 3);
+        var g = hex.substring(3, 5);
+        var b = hex.substring(5, 7);
+        return [parseInt(r, 16) / 255.0, parseInt(g, 16) / 255.0, parseInt(b, 16) / 255.0];
+    }
+    //-------------------------------------------------------------------------------------------------
+    function makeDateString(unixTimestampInSeconds, includeDayOfTheWeek, includeMonth, includeDay) {
+        const date = new Date(unixTimestampInSeconds * 1000);
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const a = includeDayOfTheWeek ? (days[date.getDay()] + ", ") : "";
+        const b = includeMonth ? (months[date.getMonth()] + " ") : "";
+        const c = includeDay ? date.getDate() : "";
+        return a + b + c;
+    }
+    //-------------------------------------------------------------------------------------------------
+    function rulerStep(rulerStepTable, target) {
+        var result = 0;
+        while (result < target) {
+            var best = 0;
+            for (var i = 0; i < rulerStepTable.length; ++i) {
+                var a = target - Math.abs(result + rulerStepTable[i]);
+                var b = target - Math.abs(result + rulerStepTable[best]);
+                if (a < 0 && b < 0) break; // ceil
+                if (a < b) best = i;
+            }
+            result += rulerStepTable[best];
+        }
+        return result;
+    }
+    //-------------------------------------------------------------------------------------------------
+    function realloc(array, newLength) {
+        var result = array;
+        const diff = newLength - array.length;
+        if (diff > 0) {
+            result = array.concat(new Array(diff));
+        }
+        return result;
+    }
+    //-------------------------------------------------------------------------------------------------
+    function clamp(val, min, max) {
+        return val < min ? min : (val > max ? max : val);
+    }
+    //-------------------------------------------------------------------------------------------------
+    function swap(array, i, j) {
+        var temp = array[i];
+        array[i] = array[j];
+        array[j] = temp;
+    }
+    //-------------------------------------------------------------------------------------------------
+    function lerp(v0, v1, t) {
+        return (1 - t) * v0 + t * v1;
+    }
+    //-------------------------------------------------------------------------------------------------
+    /*
+        HTML helpers
+    */
+    //-------------------------------------------------------------------------------------------------
+    function htmlHide(htmlElement) {
+        htmlElement.style.visibility = "hidden";
+    }
+    function htmlShow(htmlElement, x, y) {
+        htmlElement.style.visibility = "visible";
+    }
+    function htmlPosition(htmlElement, x, y, width, height) {
+        if (x != undefined)
+            htmlElement.style.left = x + "px";
+        if (y != undefined)
+            htmlElement.style.top = y + "px";
+        if (width != undefined)
+            htmlElement.style.width = width + "px";
+        if (height != undefined)
+            htmlElement.style.height = height + "px";   
+    }
+    function htmlColor(htmlElement, color, backgroundColor, borderColor) {
+        if (color != undefined)
+            htmlElement.style.color = color;
+        if (backgroundColor != undefined)
+            htmlElement.style.backgroundColor = backgroundColor;
+        if (borderColor != undefined)
+            htmlElement.style.borderColor = borderColor;
+    } 
+    function htmlInnerText(htmlElement, string) {
+        htmlElement.innerText = string;
+    }
+    function htmlCreate(tagName, parent, className, visible, color, backgroundColor, borderColor) {
+        const node = document.createElement(tagName);
+        if (className != undefined)
+            node.setAttribute("class", className);
+        if (visible != undefined)
+            node.style.visibility = visible ? "visible" : "hidden";
+        if (color != undefined)
+            node.style.color = color;
+        if (backgroundColor != undefined)
+            node.style.backgroundColor = backgroundColor;
+        if (borderColor != undefined)
+            node.style.borderColor = borderColor;
+        if (parent != undefined)
+            parent.appendChild(node);
+        return node;
+    }
+    //-------------------------------------------------------------------------------------------------
+    // constructor
+    function ChartLegendTable(parent, datasets, numColumns) {
+        if (numColumns > 1 && numColumns % 2 == 1) numColumns++; // keep numColumns even
+        const container = document.createElement("div");
+        const label = document.createElement("label");
+        const table = document.createElement("table");
+        const tbody = document.createElement("tbody");
+        const numColumnsFits = datasets.length < numColumns ? datasets.length : numColumns;
+        for (var y = 0; y < datasets.length / numColumnsFits; ++y) {
+            var tr = document.createElement("tr");
+            for (var x = 0; x < numColumnsFits; ++x) {
+                const td = document.createElement("td");
+                td.setAttribute("class", "chart-legend-table-td");
+                td.style.color = datasets[x + y * numColumnsFits].color;
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+            tr = document.createElement("tr");
+            for (var x = 0; x < numColumnsFits; ++x) {
+                const th = document.createElement("th");
+                th.setAttribute("class", "chart-legend-table-th");
+                th.style.color = datasets[x + y * numColumnsFits].color;
+                th.innerText = datasets[x + y * numColumnsFits].name;
+                tr.appendChild(th);
+            }
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        container.appendChild(label);
+        container.appendChild(table);
+        parent.appendChild(container);
+        this.container = container;
+        this.date = label;
+        this.names = container.getElementsByTagName("th");
+        this.values = container.getElementsByTagName("td");
+        label.setAttribute("class", "chart-legend-table-caption");
+        container.setAttribute("class", "chart-legend-table");
+        container.style.visibility = "collapse";
+    }
+    function updateChartLegendTable(table, datasetIndex, left, top, textDate, textValue) {
+        table.container.style.visibility = "visible";
+        table.container.style.left = left.toString() + "px";
+        table.container.style.top = top.toString() + "px";
+        table.date.innerText = textDate;
+        table.values[datasetIndex].innerText = textValue;
+    }
+</script>
+</html>
