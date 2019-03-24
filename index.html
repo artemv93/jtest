@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<!-- ~ Built entierly from scratch for Telegram. ~ -->
+<!-- ~ Built from scratch for Telegram contest ~ -->
 <html>
 <head>
     <meta charset="UTF-8" name="viewport" content="user-scalable=no, initial-scale=1.0, width=device-width"> 
     <title>Charts contest for Telegram by Artem V</title>
     <style>
-        /**{ border: 1px solid red; }*/
         body {
             -webkit-user-select: none;
             -moz-user-select: -moz-none;
@@ -15,6 +14,7 @@
         }
         canvas {
             margin: auto;
+            max-width: 1024px;
             width: 90vw;
             height: 200px;
             display: block;
@@ -26,7 +26,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
             font-size: 14px;
         }
-        /* important classes used for charts */
+        /* important classes */
         .chart-ruler-value {
             z-index: 100;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -34,7 +34,6 @@
             color: #96A2AA;
             white-space: nowrap;
             pointer-events: none;
-            /*transition: all 16ms ease;*/
             position: absolute;
         }
         .chart-legend-table {
@@ -95,6 +94,7 @@
             padding-top: 10px;
             padding-bottom: 10px;
             width: 90vw;
+            max-width: 1024px;
         }
         .chart-toggles-name {
             margin-left: 14px;
@@ -173,7 +173,6 @@
             uniform float margin;
             void main(void)
             {
-                // Who needs matrix libs anyways?
                 vec2 range = max - min;
                 vec2 toScreenSpace = screen - margin - margin;
                 vec2 toClipSpace = vec2(1) / screen;
@@ -196,8 +195,6 @@
     "use strict";
     //-------------------------------------------------------------------------------------------------
     // Declare some global constants
-    const triangleFanCircleVertexCount = 16;
-    const triangleFanCircle = [0.5,0,0.46193976625564337,0.1913417161825449,0.3535533905932738,0.35355339059327373,0.19134171618254492,0.46193976625564337,3.061616997868383e-17,0.5,-0.19134171618254486,0.46193976625564337,-0.35355339059327373,0.3535533905932738,-0.46193976625564337,0.19134171618254495,-0.5,6.123233995736766e-17,-0.4619397662556434,-0.19134171618254484,-0.35355339059327384,-0.35355339059327373,-0.19134171618254517,-0.46193976625564326,-9.184850993605148e-17,-0.5,0.191341716182545,-0.4619397662556433,0.353553390593274,-0.3535533905932735,0.4619397662556436,-0.19134171618254436];
     const rulerStepTableX = [0, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, 14400, 43200, 86400, 604800, 2419200, 29030400];    // time in seconds
     const rulerStepTableY = [0, 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 50000, 100000, 500000, 1000000];  // generic numbers
     // Prepare offscreen WebGL context
@@ -216,7 +213,6 @@
     var vsScreen;   // vec2 uniform
     var vsMargin;   // float uniform
     var psColor;    // vec4 uniform
-    var circleVertexBuffer = null;
     if (gl) {
         // compile shaders
         vertexShader = gl.createShader(gl.VERTEX_SHADER);
@@ -233,10 +229,6 @@
         vsScreen = gl.getUniformLocation(gpuProgram, "screen");
         vsMargin = gl.getUniformLocation(gpuProgram, "margin");
         psColor = gl.getUniformLocation(gpuProgram, "color");
-        // create circle mesh buffer (unused)
-        circleVertexBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, circleVertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleFanCircle), gl.STATIC_DRAW);
     }
     // Bind global handlers
     var g_ChartInteractionInProgress = null;
@@ -322,7 +314,7 @@
             ...
         ]
     */
-    function convertTelegramChartToArrayOfDatasets(src) {
+    function convertTelegramDataToArrayOfDatasets(src) {
         var srcNameKeys = Object.keys(src.names);
         var srcNameValues = Object.values(src.names);
         var srcTypeKeys = Object.keys(src.types);
@@ -373,7 +365,7 @@
         // Convert data
         const views = new Array(data.length);
         for (var i = 0; i < data.length; ++i) {
-            const datasets = convertTelegramChartToArrayOfDatasets(data[i]);
+            const datasets = convertTelegramDataToArrayOfDatasets(data[i]);
             const view = new ChartView(gl, datasets, {chartApi:"canvas2d", lensApi:"webgl"});
             views[i] = view;
         }
@@ -490,7 +482,6 @@
             canvas.addEventListener("mousemove", function (e) { handleMouseEvents(e); });
             canvas.addEventListener("mousedown", function (e) { handleMouseEvents(e); });
         }
-        //canvas.onresize = handleResizeEvents;
         // Append canvas
         opt.parent.appendChild(canvas);
         // Resize canvas
@@ -518,7 +509,9 @@
         const height = ctx.canvas.height;
         oldRange = oldRange || chart.range;
         newRange = newRange || chart.range;
-        chart.resize(newRange);
+        if (opt.ruler) {
+            chart.resize(newRange);
+        }
         if (chart.gl) {
             // WebGL 
             const gl = chart.gl;
@@ -664,19 +657,28 @@
         }
         if (opt.ruler) {
             var r = chart.rulers[0];
-            const rangeX = oldRange.max[0] - oldRange.min[0];
             const offsetTime = oldRange.min[0] - newRange.min[0];
+            if (Math.abs(offsetTime) > r.step) {
+                chart.range = newRange;
+                chart.resize(newRange);
+            }
             var value = oldRange.min[0];
             for (var i = 0; i < r.numSteps; ++i) {
                 const node = r.nodes[i];
                 const t = (i * r.step + offsetTime) / r.range;
-                const value = oldRange.min[0] + r.range * t ;
-                node.innerText = makeDateString(chart.beginDate + value, false, true, true);
-                //const rect = node.getBoundingClientRect();
+                const value = oldRange.min[0] + r.range * t;
+                node.innerText = makeDateString(chart.beginDate + value - offsetTime, false, true, true);
+                //const rect = node.getBoundingClientRect(); 
                 const nodeWidth = 40; //rect.right - rect.left;
-                node.style.left = ((left + nodeWidth) + (width - nodeWidth) * t - nodeWidth).toString() + "px";
-                node.style.top = (top + height).toString() + "px";
-                node.style.visibility = "visible";
+                const screenX = (left + nodeWidth) + (width - nodeWidth) * t - nodeWidth;
+                if (screenX > left && screenX < left + width) {
+                    node.style.left = screenX + "px";
+                    node.style.top = (top + height).toString() + "px";
+                    node.style.visibility = "visible";
+                }
+                else {
+                    node.style.visibility = "hidden";
+                }
             }
             if (minY != Number.MAX_VALUE && maxY != Number.MIN_VALUE) {
                 r = chart.rulers[1];
@@ -702,7 +704,6 @@
     }
     //-------------------------------------------------------------------------------------------------
     Chart.prototype.resize = function(viewRange) {
-        // (See comment in "rulerResize" function)
         const chart = this;
         const opt = chart.opt;
         const range = viewRange || chart.range;
@@ -712,8 +713,8 @@
             r.range = range.max[0] - range.min[0];
             r.numSteps = Math.round(chart.ctx.canvas.width / opt.rulerStepInPixelsX);
             r.step = rulerStep(rulerStepTableX, r.range / r.numSteps);
-            r.nodes = realloc(r.nodes, r.numSteps + 1);
-            for (var i = 0; i < r.numSteps + 1; ++i) {
+            r.nodes = realloc(r.nodes, r.numSteps * 2 + 1);
+            for (var i = 0; i < r.numSteps * 2 + 1; ++i) {
                 if (!r.nodes[i]) {
                     r.nodes[i] = htmlCreate("a", chart.opt.parent, "chart-ruler-value", false);
                 }
@@ -811,9 +812,8 @@
         self.touchMove = function (e) {
             if (g_ChartInteractionInProgress != self)
                 return;
-            if (self.lensState == "touchExpand") {
+            if (self.lensState == "touchExpand")
                 return;
-            }
             self.lensState = "touchMove";
             var clientX = e.clientX;
             var clientY = e.clientY;
@@ -826,15 +826,12 @@
             recomputeRange();
             self.mouseX = clientX;
             self.mouseY = clientY;
-            console.log(self.lensState);
         }
         self.touchExpand = function (e) {
             if (g_ChartInteractionInProgress != self)
                 return;
-            if (self.lensState == "touchMove") {
-                self.touchMove(e);
+            if (self.lensState == "touchMove")
                 return;
-            }
             self.lensState = "touchExpand";
             var clientX = e.clientX;
             var clientY = e.clientY;
@@ -855,7 +852,6 @@
             recomputeRange();
             self.mouseX = clientX;
             self.mouseY = clientY;
-            console.log(self.lensState);
         }
         self.touchStart = function (e) {
             if (g_ChartInteractionInProgress == null)
@@ -877,12 +873,11 @@
                     window.requestAnimationFrame(animate);
             }
             animate();
-            console.log(self.lensState);
         }
         self.touchEnd = function (e) {
             g_ChartInteractionInProgress = null;
             self.lensState = "touchEnd";
-            chart.range = self.range;
+           // chart.range = self.range;
             // let animation finish for some 30 more frames after interaction ended
             var count = 30;
             function animate () {
@@ -892,7 +887,6 @@
                     window.requestAnimationFrame(animate);
             }
             animate();
-            console.log(self.lensState);
         }
         self.uiLeftBar.addEventListener("mousedown", self.touchStart);
         self.uiLeftBar.addEventListener("touchstart", self.touchStart);
@@ -1048,12 +1042,6 @@
     //-------------------------------------------------------------------------------------------------
     function clamp(val, min, max) {
         return val < min ? min : (val > max ? max : val);
-    }
-    //-------------------------------------------------------------------------------------------------
-    function swap(array, i, j) {
-        var temp = array[i];
-        array[i] = array[j];
-        array[j] = temp;
     }
     //-------------------------------------------------------------------------------------------------
     function lerp(v0, v1, t) {
