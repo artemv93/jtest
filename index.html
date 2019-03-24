@@ -370,6 +370,7 @@
             views[i] = view;
         }
     });
+    //-------------------------------------------------------------------------------------------------s
     var ChartOptions = { 
         legend: true,
         ruler: true,
@@ -466,15 +467,10 @@
                 const node = htmlCreate("div", opt.parent, "chart-legend-circle", false);
                 self.uiNodeCircles[i] = node;
             }
-            function handleMouseEvents(mouseEvent) {
-                // A shorthand function for mouse event handlers
-                canvas.width = canvas.clientWidth;
-                canvas.height = canvas.clientHeight;
-                if (mouseEvent && mouseEvent.clientX && mouseEvent.clientY) {
-                    const rect = self.ctx.canvas.getBoundingClientRect();
-                    self.mouseX = (mouseEvent.clientX - rect.left) * (self.ctx.canvas.width / rect.width);
-                    self.mouseY = (mouseEvent.clientY - rect.top) * (self.ctx.canvas.height / rect.height);
-                }
+            function handleMouseEvents(e) {
+                const rect = self.ctx.canvas.getBoundingClientRect();
+                self.mouseX = (e.clientX - rect.left) * (self.ctx.canvas.width / rect.width);
+                self.mouseY = (e.clientY - rect.top) * (self.ctx.canvas.height / rect.height);
                 if (opt.selfUpdate) {
                     self.draw();
                 }
@@ -663,7 +659,7 @@
                 chart.resize(newRange);
             }
             var value = oldRange.min[0];
-            for (var i = 0; i < r.numSteps; ++i) {
+            for (var i = 0; i < r.numSteps + 1; ++i) {
                 const node = r.nodes[i];
                 const t = (i * r.step + offsetTime) / r.range;
                 const value = oldRange.min[0] + r.range * t;
@@ -877,7 +873,7 @@
         self.touchEnd = function (e) {
             g_ChartInteractionInProgress = null;
             self.lensState = "touchEnd";
-           // chart.range = self.range;
+            //chart.range = self.range;
             // let animation finish for some 30 more frames after interaction ended
             var count = 30;
             function animate () {
@@ -922,7 +918,7 @@
                 thisDataset.hidden = !thisDataset.hidden;
                 if (thisDataset.hidden) siblingSpan.style.backgroundColor = "#ccc";
                 else siblingSpan.style.backgroundColor = thisDataset.color;
-                function animateToggleSwitch() {
+                function animate() {
                     t = t * (t - 0.0005);
                     if (thisDataset.hidden) {
                         // fade 1 -> 0
@@ -942,11 +938,11 @@
                     recomputeRange();
                     chart.draw(chart.range, self.range);
                     if (t > 0)
-                        window.requestAnimationFrame(animateToggleSwitch);
+                        window.requestAnimationFrame(animate);
                     else
                         t = 1;
                 }
-                animateToggleSwitch();
+                animate();
             }
             var name = htmlCreate("span", self.uiTogglesContainer, "chart-toggles-name");
             name.innerText = dataset.name;
