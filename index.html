@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- ~ Built entierly from scratch for Telegram. ~ -->
 <html>
 <head>
     <meta charset="UTF-8" name="viewport" content="user-scalable=no, initial-scale=1.0, width=device-width"> 
@@ -376,47 +377,6 @@
             const view = new ChartView(gl, datasets, {chartApi:"canvas2d", lensApi:"webgl"});
             views[i] = view;
         }
-        // Animate first 30 frames manually
-        var count = 30;
-        function animate() {
-            for (var i = 0; i < views.length; ++i) {
-                views[i].draw();
-            }
-            if (count-- > 0)
-                window.requestAnimationFrame(animate);
-        }
-        animate();
-        // test webgl
-        /*if (gl) {
-            const chart = charts[0].chart;
-            gl.viewport(0, 0, canvas.width, canvas.height);
-            gl.clearColor(1, 0, 1, 1);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.useProgram(gpuProgram);
-            for (var i = 0; i < chart.datasets.length; ++i) {
-                const dataset = chart.datasets[i];
-                // create vertex buffers
-                const vertexBuf = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuf);
-                gl.bufferData(gl.ARRAY_BUFFER, dataset.verts, gl.STATIC_DRAW);
-                gl.vertexAttribPointer(vsPosition, 2, gl.FLOAT, false, 0, 0);
-                gl.enableVertexAttribArray(vsPosition);
-                gl.uniform2fv(vsMin, chart.min);
-                gl.uniform2fv(vsMax, chart.max);
-                gl.uniform2f(vsOffset, 0, 0);
-                gl.uniform2f(vsScreen, canvas.width, canvas.height);
-                gl.uniform4f(psColor, 0, 1, 1, 1);
-                gl.drawArrays(gl.LINE_STRIP, 0, dataset.vertCount);
-            }
-            //circle
-            gl.bindBuffer(gl.ARRAY_BUFFER, circleVertexBuffer);
-            gl.vertexAttribPointer(vsPosition, 2, gl.FLOAT, false, 0, 0);
-            gl.enableVertexAttribArray(vsPosition);
-            gl.uniform2f(vsMax, 1, 1);
-            gl.uniform2f(vsOffset, 1, 0);
-            gl.uniform4f(psColor, 0, 1, 1, 1);
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, triangleFanCircleVertexCount);
-        }*/
     });
     var ChartOptions = { 
         legend: true,
@@ -613,8 +573,6 @@
                 }
                 const scaleX = chart.scaleX * dataset.scaleX;
                 const scaleY = chart.scaleY * dataset.scaleY;
-                //if (chart.dynamicMinY <= 0) chart.dynamicMinY = newRange.min[1];
-                //if (chart.dynamicMaxY <= 0) chart.dynamicMaxY = newRange.max[1];
                 const min = [newRange.min[0] / scaleX, chart.dynamicMinY / scaleY];
                 const max = [newRange.max[0] / scaleX, chart.dynamicMaxY / scaleY];
                 const rangeX = max[0] - min[0];
@@ -697,8 +655,8 @@
             }
         }
         if (minY != Number.MAX_VALUE && maxY != Number.MIN_VALUE) {
-            chart.dynamicMinY = lerp(chart.dynamicMinY, minY, 0.25);
-            chart.dynamicMaxY = lerp(chart.dynamicMaxY, maxY, 0.25);
+            chart.dynamicMinY = lerp(chart.dynamicMinY, minY, 0.33);
+            chart.dynamicMaxY = lerp(chart.dynamicMaxY, maxY, 0.33);
         }
         if (chart.gl){
             // WebGL 
@@ -748,10 +706,6 @@
         const chart = this;
         const opt = chart.opt;
         const range = viewRange || chart.range;
-        //const ctx = chart.ctx;
-        //rulerResize(chart.rulers[0], opt.parent, range.min[0], range.max[0], ctx.canvas.width, opt.rulerStepInPixelsX, null);
-        //rulerResize(chart.rulers[1], opt.parent, range.min[1], range.max[1], ctx.canvas.height, opt.rulerStepInPixelsY, rulerStepTableY);
-
         if (opt.ruler) {
             // X
             var r = chart.rulers[0];
@@ -826,8 +780,8 @@
         self.uiLeftBar = htmlCreate("div", self.uiLensContainer, "chart-lens-bar-left", true, null, "#FFFFFFA1");
         self.uiRightBar = htmlCreate("div", self.uiLensContainer, "chart-lens-bar-right", true, null, "#FFFFFFA1");
         self.opt = opt;
-        self.left = 0.8;
-        self.width = 0.2;
+        self.left = 0.8;  // lens position [0, 1]
+        self.width = 0.2; // lens width [0, 1]
         self.mouseX = 0;
         self.mouseY = 0;
         self.animationInProgress = false;
@@ -835,6 +789,7 @@
         const lens = self.lens;
         chart.resize();
         self.range = chart.range;
+        self.lensState = "uninitialized";
         function recomputeRange() {
             var minX = Math.round(chart.max[0] * self.left);
             var maxX = Math.round(chart.max[0] * (self.left + self.width));
@@ -856,6 +811,10 @@
         self.touchMove = function (e) {
             if (g_ChartInteractionInProgress != self)
                 return;
+            if (self.lensState == "touchExpand") {
+                return;
+            }
+            self.lensState = "touchMove";
             var clientX = e.clientX;
             var clientY = e.clientY;
             if (e.touches) {
@@ -867,11 +826,16 @@
             recomputeRange();
             self.mouseX = clientX;
             self.mouseY = clientY;
-            console.log("move");
+            console.log(self.lensState);
         }
         self.touchExpand = function (e) {
             if (g_ChartInteractionInProgress != self)
                 return;
+            if (self.lensState == "touchMove") {
+                self.touchMove(e);
+                return;
+            }
+            self.lensState = "touchExpand";
             var clientX = e.clientX;
             var clientY = e.clientY;
             if (e.touches) {
@@ -886,17 +850,18 @@
             if (e.srcElement == self.uiRightBar) {
                 self.width = self.width + deltaX / lens.ctx.canvas.clientWidth;
             }
-            console.log("expand");
-            console.dir(e.srcElement);
+            self.width = clamp(self.width, 80/lens.ctx.canvas.width, 1);
+            self.left = clamp(self.left, 0, 1 - self.width);
             recomputeRange();
             self.mouseX = clientX;
             self.mouseY = clientY;
+            console.log(self.lensState);
         }
         self.touchStart = function (e) {
             if (g_ChartInteractionInProgress == null)
                 g_ChartInteractionInProgress = self;
-            else
-                return;
+            else return;
+            self.lensState = "touchStart";
             var clientX = e.clientX;
             var clientY = e.clientY;
             if (e.touches) {
@@ -907,24 +872,27 @@
             self.mouseY = clientY;
             recomputeRange();
             function animate () {
-                
                 chart.draw(chart.range, self.range);
-                
                 if (g_ChartInteractionInProgress == self)
                     window.requestAnimationFrame(animate);
             }
             animate();
+            console.log(self.lensState);
         }
         self.touchEnd = function (e) {
             g_ChartInteractionInProgress = null;
+            self.lensState = "touchEnd";
             chart.range = self.range;
+            // let animation finish for some 30 more frames after interaction ended
             var count = 30;
             function animate () {
+                recomputeRange();
                 chart.draw(chart.range, self.range);
                 if (count-- > 0)
                     window.requestAnimationFrame(animate);
             }
             animate();
+            console.log(self.lensState);
         }
         self.uiLeftBar.addEventListener("mousedown", self.touchStart);
         self.uiLeftBar.addEventListener("touchstart", self.touchStart);
@@ -938,6 +906,7 @@
 
         self.uiLensContainer.addEventListener("mousemove", self.touchMove);
         self.uiLensContainer.addEventListener("touchmove", self.touchMove);
+
         lens.ctx.canvas.addEventListener("mousedown", self.touchStart);
         lens.ctx.canvas.addEventListener("touchstart", self.touchStart);
         chart.ctx.canvas.addEventListener("mousemove", function(e) {chart.draw(chart.range, self.range);});
@@ -964,19 +933,19 @@
                     if (thisDataset.hidden) {
                         // fade 1 -> 0
                         // scale x -> 4
-                        thisDataset.opacity = t;
-                        thisDataset.scaleY = lerp(thisDataset.scaleY, 4, 1 - thisDataset.opacity);
-                        if (thisDataset.opacity < 0) {
-                            thisDataset.opacity = 0;
-                            thisDataset.scaleY = 4;
-                        }
+                        thisDataset.opacity = t/2;
+                        console.log(thisDataset.opacity)
+                        thisDataset.scaleY = lerp(thisDataset.scaleY, 4, 1 - t);
+                        if (thisDataset.opacity < 0) thisDataset.opacity = 0;
                     }
                     else {
                         // fade 0 -> 1
                         // scale x -> 1
-                        thisDataset.opacity = 1 - t;
-                        thisDataset.scaleY = lerp(thisDataset.scaleY, 1, thisDataset.opacity);
+                        thisDataset.opacity = 1 - t/2;
+                        thisDataset.scaleY = lerp(thisDataset.scaleY, 1, t);
+                        if (thisDataset.opacity > 1)  thisDataset.opacity = 1;
                     }
+                    recomputeRange();
                     chart.draw(chart.range, self.range);
                     if (t > 0)
                         window.requestAnimationFrame(animateToggleSwitch);
@@ -990,6 +959,8 @@
             htmlCreate("br", self.uiTogglesContainer);
             self.uiToggles[i] = input;
         }
+        self.lens.draw();
+        self.touchEnd();
     }
     //-------------------------------------------------------------------------------------------------
     ChartView.prototype.draw = function () {
