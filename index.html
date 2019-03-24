@@ -667,7 +667,7 @@
                 //const rect = node.getBoundingClientRect(); 
                 const nodeWidth = 40; //rect.right - rect.left;
                 const screenX = (left + nodeWidth) + (width - nodeWidth) * t - nodeWidth;
-                if (screenX > left && screenX < left + width) {
+                if (screenX > (left - nodeWidth) && screenX < (left + width)) {
                     node.style.left = screenX + "px";
                     node.style.top = (top + height).toString() + "px";
                     node.style.visibility = "visible";
