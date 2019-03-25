@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ~ Built from scratch for Telegram contest ~ -->
+<!-- Built from scratch for Telegram contest -->
 <html>
 <head>
     <meta charset="UTF-8" name="viewport" content="user-scalable=no, initial-scale=1.0, width=device-width"> 
@@ -161,8 +161,9 @@
 </head>
 <body>
     <h1>Charts contest for Telegram by Artem V</h1>
-    <h1>/ HTML5 Canvas + WebGL hybrid /</h1>
-    <h1>WIP</h1>
+    <h1> / HTML5 Canvas + WebGL hybrid / </h1>
+    <h1>Work in progress</h1>
+    <div id="optContainer" class="chart-toggles-container"></div>
     <canvas id="glOffscreenCanvas">
         <div id="vertexShaderCode">
             attribute vec2 position;
@@ -195,9 +196,10 @@
     "use strict";
     //-------------------------------------------------------------------------------------------------
     // Declare some global constants
-    const rulerStepTableX = [0, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, 14400, 43200, 86400, 604800, 2419200, 29030400];    // time in seconds
+    const rulerStepTableX = [0, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, 14400, 43200,  86400, 345600, 604800, 1209600, 2419200, 4838400, 9676800, 14515200, 29030400];    // time in seconds
     const rulerStepTableY = [0, 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 50000, 100000, 500000, 1000000];  // generic numbers
     // Prepare offscreen WebGL context
+    // I used single gl context to render
     const canvas = document.getElementById("glOffscreenCanvas");
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
@@ -286,6 +288,7 @@
                 }
             },
             {
+
             }
         ]
     */
@@ -361,13 +364,43 @@
     //-------------------------------------------------------------------------------------------------
     // Main
     asyncLoadChartData(function (data) {
-        // Convert data
         const views = new Array(data.length);
+        // Convert data
         for (var i = 0; i < data.length; ++i) {
             const datasets = convertTelegramDataToArrayOfDatasets(data[i]);
-            const view = new ChartView(gl, datasets, {chartApi:"canvas2d", lensApi:"webgl"});
-            views[i] = view;
+            views[i] = new ChartView(gl, datasets, {chartApi:"demo", lensApi:"demo"});
+            views[i].chart.opt.webgl = false;
+            views[i].lens.opt.webgl = false;
         }
+        var onToggle = function (e) {
+            var nameElement = e.srcElement.parentElement.nextSibling;
+            var colorElement = e.srcElement.nextSibling;
+            if (e.srcElement.checked) {
+                 nameElement.innerText = "webgl"; 
+                 colorElement.style.backgroundColor = "#111";
+            }
+            else {
+                nameElement.innerText = "canvas2d";
+                colorElement.style.backgroundColor = "#aaa";
+            }
+        }
+        htmlCreate("span", optContainer, "chart-toggles-name").innerText = "Main API:  ";
+        var mainApiToggle = htmlCreateToggle(optContainer, "canvas2d", "#aaa", 0, function (e) {
+            onToggle(e);
+            for (var i = 0; i < views.length; ++i) {
+                views[i].chart.opt.webgl = e.srcElement.checked;  
+                views[i].chart.draw(views[i].chart.range, views[i].range);
+            }
+        }, false);
+        htmlCreate("br");
+        htmlCreate("span", optContainer, "chart-toggles-name").innerText = "Lens API:  ";
+        var lensApiToggle = htmlCreateToggle(optContainer, "canvas2d", "#aaa", 0, function (e) {
+            onToggle(e);
+            for (var i = 0; i < views.length; ++i) {
+                views[i].lens.opt.webgl = e.srcElement.checked;
+                views[i].lens.draw();
+            }
+        }, false);
     });
     //-------------------------------------------------------------------------------------------------s
     var ChartOptions = { 
@@ -381,7 +414,8 @@
         lineCap: "bevel",       // "bevel|round|miter";
         lineJoin: "bevel",
         selfUpdate: true,
-        height: null            // null to keep css value
+        height: null,            // null to keep css value
+        webgl: true,
     };
     var ChartRuler = {
         range: 0,
@@ -412,6 +446,8 @@
         if (opt.lineJoin == undefined)              opt.lineJoin = "bevel";
         if (opt.selfUpdate == undefined)            opt.selfUpdate = true;
         if (opt.height == undefined)                opt.height = null;
+        if (opt.webgl == undefined)                 opt.webgl = true;
+        if (!gl) opt.webgl = false;
         const canvas = document.createElement("canvas");
         self.ctx = canvas.getContext("2d");
         self.datasets = datasets;
@@ -440,7 +476,7 @@
             max: self.max
         };
         self.drawing = false;
-        if (gl) {
+        if (opt.webgl) {
             // Create WebGL vertex buffers here once
             self.vertexBuffers = new Array(datasets.length);
             for (var i = 0; i < datasets.length; ++i) {
@@ -485,7 +521,7 @@
         if (opt.height) {
             canvas.style.height = opt.height + "px";
         }
-        if (!gl) {
+        if (!opt.webgl) {
             // Have to resize one more time for canvas2d
             canvas.width = canvas.clientWidth;
             canvas.height = canvas.clientHeight;
@@ -496,6 +532,7 @@
         const chart = this;
         if (chart.drawing) return;
         chart.drawing = true;
+        const gl = chart.gl;
         const ctx = chart.ctx;
         const opt = chart.opt;
         const left = ctx.canvas.offsetLeft;
@@ -507,9 +544,8 @@
         if (opt.ruler) {
             chart.resize(newRange);
         }
-        if (chart.gl) {
+        if (opt.webgl) {
             // WebGL 
-            const gl = chart.gl;
             gl.viewport(0, 0, width, height);
             gl.clearColor(1, 1, 1, 1);
             gl.clear(gl.COLOR_BUFFER_BIT);
@@ -554,7 +590,7 @@
             // for each dataset
             const dataset = chart.datasets[i];
             if (dataset.opacity > 0) {
-                if (!chart.gl) {
+                if (!opt.webgl) {
                     ctx.strokeStyle = dataset.color;
                     ctx.globalAlpha = dataset.opacity;
                     ctx.beginPath();
@@ -593,11 +629,12 @@
                             vScr[1] = y;
                         }
                     }
-                    if (!chart.gl) {
+
+                    if (!opt.webgl) {
                         ctx.lineTo(x, y); // HTML5 Canvas
                     }
                 }
-                if (chart.gl) {
+                if (opt.webgl) {
                     // WebGL 
                     const min = [newRange.min[0], chart.dynamicMinY];
                     const max = [newRange.max[0], chart.dynamicMaxY];
@@ -645,23 +682,24 @@
             chart.dynamicMinY = lerp(chart.dynamicMinY, minY, 0.33);
             chart.dynamicMaxY = lerp(chart.dynamicMaxY, maxY, 0.33);
         }
-        if (chart.gl){
+        if (opt.webgl) {
             // WebGL 
             ctx.drawImage(gl.canvas, 0, 0, width, height);
         }
         if (opt.ruler) {
             var r = chart.rulers[0];
             const offsetTime = oldRange.min[0] - newRange.min[0];
-            if (Math.abs(offsetTime) > r.step) {
+            if (Math.abs(offsetTime) >= r.step) {
                 chart.range = newRange;
                 chart.resize(newRange);
             }
-            var value = oldRange.min[0];
+            // X
             for (var i = 0; i < r.numSteps + 1; ++i) {
                 const node = r.nodes[i];
                 const t = (i * r.step + offsetTime) / r.range;
                 const value = oldRange.min[0] + r.range * t;
-                node.innerText = makeDateString(chart.beginDate + value - offsetTime, false, true, true);
+                const timestamp = clamp(value - offsetTime, chart.min[0], chart.max[0]);
+                node.innerText = makeDateString(chart.beginDate + timestamp, false, true, true);
                 //const rect = node.getBoundingClientRect(); 
                 const nodeWidth = 40; //rect.right - rect.left;
                 const screenX = (left + nodeWidth) + (width - nodeWidth) * t - nodeWidth;
@@ -674,6 +712,7 @@
                     node.style.visibility = "hidden";
                 }
             }
+            // Y
             if (minY != Number.MAX_VALUE && maxY != Number.MIN_VALUE) {
                 r = chart.rulers[1];
                 var dynamicRangeY = maxY - minY;
@@ -728,8 +767,8 @@
     }
     //-------------------------------------------------------------------------------------------------
     var ChartViewOptions = {
-        chartApi: "canvas2d",
-        lensApi: "webgl",
+        chartApi:"canvas2d", // webgl|canvas2d|demo
+        lensApi: "webgl", // webgl|canvas2d|demo
         legend: true,
         ruler: true,
         parent: null,
@@ -738,16 +777,15 @@
     function ChartView(gl, datasets, options) {
         // This creates chart + lens with animation logic
         const self = this;
-        const opt = options || Object.create(ChartViewOptions);
+        const opt = options || Object.create(ChartOptions);
         if (opt.chartApi == undefined) opt.chartApi = "canvas2d";
         if (opt.lensApi == undefined) opt.lensApi = "webgl";
         if (opt.legend == undefined) opt.legend =  true;
         if (opt.ruler == undefined) opt.ruler = true;
         if (opt.parent == undefined) opt.parent = null;
-        if (opt.parent == null)
-            opt.parent = document.body;
-        const chartGL = opt.chartApi == "webgl" ? gl : null;
-        const lensGL = opt.lensApi == "webgl" ? gl : null;
+        if (opt.parent == null) opt.parent = document.body;
+        const chartGL = opt.chartApi == "webgl" || opt.chartApi == "demo" ? gl : null;
+        const lensGL = opt.lensApi == "webgl" || opt.lensApi == "demo" ? gl : null;
         self.uiRootContainer = htmlCreate("div", opt.parent, "chart-view-root");
         const mainOptions = {
             legend: opt.legend,
@@ -770,6 +808,9 @@
             rulerStepInPixelsY: 30,
             margin: 8,
             height: 100,
+            lineWidth: 1,
+            lineCap: "miter",
+            lineJoin: "miter",
         };
         self.lens = new Chart(lensGL, datasets, lensOptions);
         self.uiLeftBar = htmlCreate("div", self.uiLensContainer, "chart-lens-bar-left", true, null, "#FFFFFFA1");
@@ -886,12 +927,15 @@
         self.uiLeftBar.addEventListener("touchstart", self.touchStart);
         self.uiLeftBar.addEventListener("mousemove", self.touchExpand);
         self.uiLeftBar.addEventListener("touchmove", self.touchExpand);
+
         self.uiRightBar.addEventListener("mousedown", self.touchStart);
         self.uiRightBar.addEventListener("touchstart", self.touchStart);
         self.uiRightBar.addEventListener("mousemove", self.touchExpand);
         self.uiRightBar.addEventListener("touchmove", self.touchExpand);
+
         self.uiLensContainer.addEventListener("mousemove", self.touchMove);
         self.uiLensContainer.addEventListener("touchmove", self.touchMove);
+
         lens.ctx.canvas.addEventListener("mousedown", self.touchStart);
         lens.ctx.canvas.addEventListener("touchstart", self.touchStart);
         chart.ctx.canvas.addEventListener("mousemove", function(e) {chart.draw(chart.range, self.range);});
@@ -900,13 +944,10 @@
         self.uiTogglesContainer = htmlCreate("div", self.uiRootContainer, "chart-toggles-container");
         self.uiToggles = new Array(datasets.length);
         for (var i = 0; i < datasets.length; ++i) {
-            var dataset = datasets[i];
-            var label = htmlCreate("label", self.uiTogglesContainer, "switch");
-            label.innerHTML = "<input type='checkbox' checked dataset='"+ i +"'><span class='slider round' style='background-color:" + dataset.color + ";'></span>";
-            var input = label.getElementsByTagName("input")[0];
-            var span = label.getElementsByTagName("span")[0];
+            const dataset = datasets[i];
             var t = 1;
-            input.oninput = function (e) {
+            self.uiToggles[i] = htmlCreateToggle(self.uiTogglesContainer, dataset.name, dataset.color, i, function (e) {
+                console.log("asd");
                 var datasetIndex = e.srcElement.getAttribute("dataset");
                 var siblingSpan  = e.srcElement.nextElementSibling;
                 var thisDataset = datasets[datasetIndex];
@@ -919,7 +960,6 @@
                         // fade 1 -> 0
                         // scale x -> 4
                         thisDataset.opacity = t/2;
-                        console.log(thisDataset.opacity)
                         thisDataset.scaleY = lerp(thisDataset.scaleY, 4, 1 - t);
                         if (thisDataset.opacity < 0) thisDataset.opacity = 0;
                     }
@@ -932,17 +972,15 @@
                     }
                     recomputeRange();
                     chart.draw(chart.range, self.range);
+                    lens.draw(lens.range, lens.range);
                     if (t > 0)
                         window.requestAnimationFrame(animate);
                     else
                         t = 1;
                 }
                 animate();
-            }
-            var name = htmlCreate("span", self.uiTogglesContainer, "chart-toggles-name");
-            name.innerText = dataset.name;
-            htmlCreate("br", self.uiTogglesContainer);
-            self.uiToggles[i] = input;
+
+            }, true);
         }
         self.lens.draw();
         self.touchEnd();
@@ -1085,6 +1123,16 @@
         if (parent != undefined)
             parent.appendChild(node);
         return node;
+    }
+    function htmlCreateToggle (parent, name, color, datasetIndex, onInput, checked) {
+        var label = htmlCreate("label", parent, "switch");
+        htmlCreate("span", parent, "chart-toggles-name").innerText = name;
+        htmlCreate("br", parent);
+        label.innerHTML = "<input type='checkbox' " + (checked ? "checked" : " ") + " dataset='"+ datasetIndex +"'>" + 
+                            "<span class='slider round' style='background-color:" + color + ";'></span>";
+        var input = label.getElementsByTagName("input")[0];
+        input.oninput = onInput;
+        return input;
     }
     //-------------------------------------------------------------------------------------------------
     // constructor
