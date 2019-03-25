@@ -187,7 +187,7 @@
             uniform vec4 color;
             void main(void)
             {
-                gl_FragColor = color;
+                gl_FragColor = vec4(color.rgb * color.a, color.a);
             }
         </div>
     </canvas>
@@ -947,7 +947,6 @@
             const dataset = datasets[i];
             var t = 1;
             self.uiToggles[i] = htmlCreateToggle(self.uiTogglesContainer, dataset.name, dataset.color, i, function (e) {
-                console.log("asd");
                 var datasetIndex = e.srcElement.getAttribute("dataset");
                 var siblingSpan  = e.srcElement.nextElementSibling;
                 var thisDataset = datasets[datasetIndex];
