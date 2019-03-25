@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Built from scratch for Telegram contest -->
+<!-- ~ Built from scratch for Telegram contest ~ -->
 <html>
 <head>
     <meta charset="UTF-8" name="viewport" content="user-scalable=no, initial-scale=1.0, width=device-width"> 
@@ -25,13 +25,6 @@
             text-align: center;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
             font-size: 14px;
-        }
-        h2{
-            margin: auto;
-            text-align: center;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            font-size: 12px;
-            color: salmon;
         }
         /* important classes */
         .chart-ruler-value {
@@ -168,9 +161,8 @@
 </head>
 <body>
     <h1>Charts contest for Telegram by Artem V</h1>
-    <h1>HTML5 Canvas + WebGL hybrid</h1>
-    <h2>Work in progress</h2>
-    <div id="optContainer" class="chart-toggles-container"></div>
+    <h1>/ HTML5 Canvas + WebGL hybrid /</h1>
+    <h1>WIP</h1>
     <canvas id="glOffscreenCanvas">
         <div id="vertexShaderCode">
             attribute vec2 position;
@@ -203,7 +195,7 @@
     "use strict";
     //-------------------------------------------------------------------------------------------------
     // Declare some global constants
-    const rulerStepTableX = [0, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, 14400, 43200,  86400, 345600, 604800, 1209600, 2419200, 4838400, 9676800, 14515200, 29030400];    // time in seconds
+    const rulerStepTableX = [0, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, 14400, 43200, 86400, 604800, 2419200, 29030400];    // time in seconds
     const rulerStepTableY = [0, 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 50000, 100000, 500000, 1000000];  // generic numbers
     // Prepare offscreen WebGL context
     const canvas = document.getElementById("glOffscreenCanvas");
@@ -294,7 +286,6 @@
                 }
             },
             {
-
             }
         ]
     */
@@ -370,42 +361,13 @@
     //-------------------------------------------------------------------------------------------------
     // Main
     asyncLoadChartData(function (data) {
-        const views = new Array(data.length);
         // Convert data
+        const views = new Array(data.length);
         for (var i = 0; i < data.length; ++i) {
             const datasets = convertTelegramDataToArrayOfDatasets(data[i]);
-            views[i] = new ChartView(gl, datasets, {chartApi:"demo", lensApi:"demo"});
-            views[i].chart.opt.webgl = false;
+            const view = new ChartView(gl, datasets, {chartApi:"canvas2d", lensApi:"webgl"});
+            views[i] = view;
         }
-        var onToggle = function (e) {
-            var nameElement = e.srcElement.parentElement.nextSibling;
-            var colorElement = e.srcElement.nextSibling;
-            if (e.srcElement.checked) {
-                 nameElement.innerText = "webgl"; 
-                 colorElement.style.backgroundColor = "#111";
-            }
-            else {
-                nameElement.innerText = "canvas2d";
-                colorElement.style.backgroundColor = "#aaa";
-            }
-        }
-        htmlCreate("span", optContainer, "chart-toggles-name").innerText = "Main API:  ";
-        var mainApiToggle = htmlCreateToggle(optContainer, "canvas2d", "#aaa", 0, function (e) {
-            onToggle(e);
-            for (var i = 0; i < views.length; ++i) {
-                views[i].chart.opt.webgl = e.srcElement.checked;  
-                views[i].chart.draw(views[i].chart.range, views[i].range);
-            }
-        }, false);
-        htmlCreate("br");
-        htmlCreate("span", optContainer, "chart-toggles-name").innerText = "Lens API:  ";
-        var lensApiToggle = htmlCreateToggle(optContainer, "webgl", "#111", 0, function (e) {
-            onToggle(e);
-            for (var i = 0; i < views.length; ++i) {
-                views[i].lens.opt.webgl = e.srcElement.checked;
-                views[i].lens.draw();
-            }
-        }, true);
     });
     //-------------------------------------------------------------------------------------------------s
     var ChartOptions = { 
@@ -419,8 +381,7 @@
         lineCap: "bevel",       // "bevel|round|miter";
         lineJoin: "bevel",
         selfUpdate: true,
-        height: null,            // null to keep css value
-        webgl: true,
+        height: null            // null to keep css value
     };
     var ChartRuler = {
         range: 0,
@@ -451,8 +412,6 @@
         if (opt.lineJoin == undefined)              opt.lineJoin = "bevel";
         if (opt.selfUpdate == undefined)            opt.selfUpdate = true;
         if (opt.height == undefined)                opt.height = null;
-        if (opt.webgl == undefined)                 opt.webgl = true;
-        if (!gl) opt.webgl = false;
         const canvas = document.createElement("canvas");
         self.ctx = canvas.getContext("2d");
         self.datasets = datasets;
@@ -481,7 +440,7 @@
             max: self.max
         };
         self.drawing = false;
-        if (opt.webgl) {
+        if (gl) {
             // Create WebGL vertex buffers here once
             self.vertexBuffers = new Array(datasets.length);
             for (var i = 0; i < datasets.length; ++i) {
@@ -526,7 +485,7 @@
         if (opt.height) {
             canvas.style.height = opt.height + "px";
         }
-        if (!opt.webgl) {
+        if (!gl) {
             // Have to resize one more time for canvas2d
             canvas.width = canvas.clientWidth;
             canvas.height = canvas.clientHeight;
@@ -537,7 +496,6 @@
         const chart = this;
         if (chart.drawing) return;
         chart.drawing = true;
-        const gl = chart.gl;
         const ctx = chart.ctx;
         const opt = chart.opt;
         const left = ctx.canvas.offsetLeft;
@@ -549,8 +507,9 @@
         if (opt.ruler) {
             chart.resize(newRange);
         }
-        if (opt.webgl) {
+        if (chart.gl) {
             // WebGL 
+            const gl = chart.gl;
             gl.viewport(0, 0, width, height);
             gl.clearColor(1, 1, 1, 1);
             gl.clear(gl.COLOR_BUFFER_BIT);
@@ -595,7 +554,7 @@
             // for each dataset
             const dataset = chart.datasets[i];
             if (dataset.opacity > 0) {
-                if (!opt.webgl) {
+                if (!chart.gl) {
                     ctx.strokeStyle = dataset.color;
                     ctx.globalAlpha = dataset.opacity;
                     ctx.beginPath();
@@ -634,12 +593,11 @@
                             vScr[1] = y;
                         }
                     }
-
-                    if (!opt.webgl) {
+                    if (!chart.gl) {
                         ctx.lineTo(x, y); // HTML5 Canvas
                     }
                 }
-                if (opt.webgl) {
+                if (chart.gl) {
                     // WebGL 
                     const min = [newRange.min[0], chart.dynamicMinY];
                     const max = [newRange.max[0], chart.dynamicMaxY];
@@ -687,18 +645,18 @@
             chart.dynamicMinY = lerp(chart.dynamicMinY, minY, 0.33);
             chart.dynamicMaxY = lerp(chart.dynamicMaxY, maxY, 0.33);
         }
-        if (opt.webgl) {
+        if (chart.gl){
             // WebGL 
             ctx.drawImage(gl.canvas, 0, 0, width, height);
         }
         if (opt.ruler) {
             var r = chart.rulers[0];
             const offsetTime = oldRange.min[0] - newRange.min[0];
-            if (Math.abs(offsetTime) >= r.step) {
+            if (Math.abs(offsetTime) > r.step) {
                 chart.range = newRange;
                 chart.resize(newRange);
             }
-            // X
+            var value = oldRange.min[0];
             for (var i = 0; i < r.numSteps + 1; ++i) {
                 const node = r.nodes[i];
                 const t = (i * r.step + offsetTime) / r.range;
@@ -716,7 +674,6 @@
                     node.style.visibility = "hidden";
                 }
             }
-            // Y
             if (minY != Number.MAX_VALUE && maxY != Number.MIN_VALUE) {
                 r = chart.rulers[1];
                 var dynamicRangeY = maxY - minY;
@@ -771,7 +728,7 @@
     }
     //-------------------------------------------------------------------------------------------------
     var ChartViewOptions = {
-        chartApi: "canvas2d",   // webgl|canvas2d|demo
+        chartApi: "canvas2d",
         lensApi: "webgl",
         legend: true,
         ruler: true,
@@ -787,9 +744,10 @@
         if (opt.legend == undefined) opt.legend =  true;
         if (opt.ruler == undefined) opt.ruler = true;
         if (opt.parent == undefined) opt.parent = null;
-        if (opt.parent == null) opt.parent = document.body;
-        const chartGL = opt.chartApi == "webgl" || opt.chartApi == "demo" ? gl : null;
-        const lensGL = opt.lensApi == "webgl" || opt.lensApi == "demo" ? gl : null;
+        if (opt.parent == null)
+            opt.parent = document.body;
+        const chartGL = opt.chartApi == "webgl" ? gl : null;
+        const lensGL = opt.lensApi == "webgl" ? gl : null;
         self.uiRootContainer = htmlCreate("div", opt.parent, "chart-view-root");
         const mainOptions = {
             legend: opt.legend,
@@ -928,15 +886,12 @@
         self.uiLeftBar.addEventListener("touchstart", self.touchStart);
         self.uiLeftBar.addEventListener("mousemove", self.touchExpand);
         self.uiLeftBar.addEventListener("touchmove", self.touchExpand);
-
         self.uiRightBar.addEventListener("mousedown", self.touchStart);
         self.uiRightBar.addEventListener("touchstart", self.touchStart);
         self.uiRightBar.addEventListener("mousemove", self.touchExpand);
         self.uiRightBar.addEventListener("touchmove", self.touchExpand);
-
         self.uiLensContainer.addEventListener("mousemove", self.touchMove);
         self.uiLensContainer.addEventListener("touchmove", self.touchMove);
-
         lens.ctx.canvas.addEventListener("mousedown", self.touchStart);
         lens.ctx.canvas.addEventListener("touchstart", self.touchStart);
         chart.ctx.canvas.addEventListener("mousemove", function(e) {chart.draw(chart.range, self.range);});
@@ -945,10 +900,13 @@
         self.uiTogglesContainer = htmlCreate("div", self.uiRootContainer, "chart-toggles-container");
         self.uiToggles = new Array(datasets.length);
         for (var i = 0; i < datasets.length; ++i) {
-            const dataset = datasets[i];
+            var dataset = datasets[i];
+            var label = htmlCreate("label", self.uiTogglesContainer, "switch");
+            label.innerHTML = "<input type='checkbox' checked dataset='"+ i +"'><span class='slider round' style='background-color:" + dataset.color + ";'></span>";
+            var input = label.getElementsByTagName("input")[0];
+            var span = label.getElementsByTagName("span")[0];
             var t = 1;
-            self.uiToggles[i] = htmlCreateToggle(self.uiTogglesContainer, dataset.name, dataset.color, i, function (e) {
-                console.log("asd");
+            input.oninput = function (e) {
                 var datasetIndex = e.srcElement.getAttribute("dataset");
                 var siblingSpan  = e.srcElement.nextElementSibling;
                 var thisDataset = datasets[datasetIndex];
@@ -961,6 +919,7 @@
                         // fade 1 -> 0
                         // scale x -> 4
                         thisDataset.opacity = t/2;
+                        console.log(thisDataset.opacity)
                         thisDataset.scaleY = lerp(thisDataset.scaleY, 4, 1 - t);
                         if (thisDataset.opacity < 0) thisDataset.opacity = 0;
                     }
@@ -973,15 +932,17 @@
                     }
                     recomputeRange();
                     chart.draw(chart.range, self.range);
-                    lens.draw(lens.range, self.range);
                     if (t > 0)
                         window.requestAnimationFrame(animate);
                     else
                         t = 1;
                 }
                 animate();
-
-            }, true);
+            }
+            var name = htmlCreate("span", self.uiTogglesContainer, "chart-toggles-name");
+            name.innerText = dataset.name;
+            htmlCreate("br", self.uiTogglesContainer);
+            self.uiToggles[i] = input;
         }
         self.lens.draw();
         self.touchEnd();
@@ -1124,16 +1085,6 @@
         if (parent != undefined)
             parent.appendChild(node);
         return node;
-    }
-    function htmlCreateToggle (parent, name, color, datasetIndex, onInput, checked) {
-        var label = htmlCreate("label", parent, "switch");
-        htmlCreate("span", parent, "chart-toggles-name").innerText = name;
-        htmlCreate("br", parent);
-        label.innerHTML = "<input type='checkbox' " + (checked ? "checked" : " ") + " dataset='"+ datasetIndex +"'>" + 
-                            "<span class='slider round' style='background-color:" + color + ";'></span>";
-        var input = label.getElementsByTagName("input")[0];
-        input.oninput = onInput;
-        return input;
     }
     //-------------------------------------------------------------------------------------------------
     // constructor
